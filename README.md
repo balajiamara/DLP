@@ -22,6 +22,8 @@ Refer to the README documentation inside each individual service directory for s
 * [04. Study Groups App & Phase 1 Completion Guide](file:///c:/Users/balaj/Desktop/DLP/docs/04_study_groups_app_and_phase1_completion.md): Guide to student study groups, soft leaving state machines, member management, and complete Phase 1 backend overview.
 * [05. Frontend Auth & API Client Guide](file:///c:/Users/balaj/Desktop/DLP/docs/05_frontend_auth_and_api_client.md): Architectural guide for typed Axios API client, JWT request/response interceptors, automatic 401 token refresh, and AuthContext.
 * [06. Classroom & Group Screens Guide](file:///c:/Users/balaj/Desktop/DLP/docs/06_classroom_and_group_screens.md): Complete guide to TanStack Query data fetching, role-based UI access control, join links, and group management screens.
+* [07. Backend Production Deployment Preparation Guide](file:///c:/Users/balaj/Desktop/DLP/docs/07_production_deployment_preparation.md): Guide to Gunicorn, environment variable extraction, production security headers, Render blueprint, and Django deployment checker.
+
 
 
 
