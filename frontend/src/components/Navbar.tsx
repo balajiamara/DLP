@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { NotificationDropdown } from './NotificationDropdown';
 import { BookOpen, LayoutDashboard, LogOut, User as UserIcon } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
@@ -34,7 +35,9 @@ export const Navbar: React.FC = () => {
           </nav>
         </div>
 
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-3 sm:space-x-4">
+          <NotificationDropdown />
+
           <div className="flex items-center space-x-2 text-sm bg-slate-800/80 px-3.5 py-1.5 rounded-full border border-slate-700">
             <UserIcon className="w-4 h-4 text-indigo-400" />
             <span className="font-medium text-slate-200">{user?.username}</span>

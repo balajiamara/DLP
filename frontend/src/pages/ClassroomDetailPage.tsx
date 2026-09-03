@@ -4,13 +4,19 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { useAuth } from '../context/AuthContext';
 import { getClassroom, createJoinToken } from '../lib/classrooms';
 import { Navbar } from '../components/Navbar';
-import { School, Users, Link as LinkIcon, Copy, Check, ArrowLeft, AlertCircle } from 'lucide-react';
+import { SyllabusSection } from '../components/SyllabusSection';
+import { DoubtsSection } from '../components/DoubtsSection';
+import { AssignmentsSection } from '../components/AssignmentsSection';
+import { QuizzesSection } from '../components/QuizzesSection';
+import { DashboardSection } from '../components/DashboardSection';
+import { School, Users, Link as LinkIcon, Copy, Check, ArrowLeft, AlertCircle, BookOpen, HelpCircle, FileText, Award, BarChart3 } from 'lucide-react';
 
 export const ClassroomDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const navigate = useNavigate();
 
+  const [activeTab, setActiveTab] = useState<'syllabus' | 'doubts' | 'assignments' | 'quizzes' | 'dashboard'>('syllabus');
   const [generatedLink, setGeneratedLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -162,6 +168,81 @@ export const ClassroomDetailPage: React.FC = () => {
             </div>
           )}
         </div>
+
+        {/* Navigation Tabs */}
+        <div className="flex items-center space-x-2 border-b border-slate-800 pb-2 overflow-x-auto">
+          <button
+            onClick={() => setActiveTab('syllabus')}
+            className={`px-5 py-2.5 rounded-2xl text-xs font-bold transition flex items-center space-x-2 flex-shrink-0 ${
+              activeTab === 'syllabus'
+                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20'
+                : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+            }`}
+          >
+            <BookOpen className="w-4 h-4" />
+            <span>Syllabus & Materials</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('doubts')}
+            className={`px-5 py-2.5 rounded-2xl text-xs font-bold transition flex items-center space-x-2 flex-shrink-0 ${
+              activeTab === 'doubts'
+                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20'
+                : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+            }`}
+          >
+            <HelpCircle className="w-4 h-4" />
+            <span>Doubts Forum</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('assignments')}
+            className={`px-5 py-2.5 rounded-2xl text-xs font-bold transition flex items-center space-x-2 flex-shrink-0 ${
+              activeTab === 'assignments'
+                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20'
+                : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+            }`}
+          >
+            <FileText className="w-4 h-4" />
+            <span>Assignments</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('quizzes')}
+            className={`px-5 py-2.5 rounded-2xl text-xs font-bold transition flex items-center space-x-2 flex-shrink-0 ${
+              activeTab === 'quizzes'
+                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20'
+                : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+            }`}
+          >
+            <Award className="w-4 h-4" />
+            <span>Quizzes</span>
+          </button>
+
+          {isTeacher && (
+            <button
+              onClick={() => setActiveTab('dashboard')}
+              className={`px-5 py-2.5 rounded-2xl text-xs font-bold transition flex items-center space-x-2 flex-shrink-0 ${
+                activeTab === 'dashboard'
+                  ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20'
+                  : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+              }`}
+            >
+              <BarChart3 className="w-4 h-4" />
+              <span>Dashboard</span>
+            </button>
+          )}
+        </div>
+
+        {/* Tab Content */}
+        {activeTab === 'syllabus' ? (
+          <SyllabusSection classroomId={classroom.id} isTeacher={isTeacher} />
+        ) : activeTab === 'doubts' ? (
+          <DoubtsSection classroomId={classroom.id} isTeacher={isTeacher} />
+        ) : activeTab === 'assignments' ? (
+          <AssignmentsSection classroomId={classroom.id} isTeacher={isTeacher} />
+        ) : activeTab === 'quizzes' ? (
+          <QuizzesSection classroomId={classroom.id} isTeacher={isTeacher} />
+        ) : isTeacher ? (
+          <DashboardSection classroomId={classroom.id} />
+        ) : null}
       </main>
     </div>
   );
