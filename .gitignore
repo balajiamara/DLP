@@ -57,3 +57,6 @@ Thumbs.db
 docs
 
 render.yaml
+
+.fresh_django_venv/
+.fresh_fastapi_venv/
