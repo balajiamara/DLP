@@ -1,7 +1,8 @@
 // Note: Storing JWT tokens in localStorage is acceptable for portfolio/demo applications,
 // but has known XSS security trade-offs compared to httpOnly cookies for production applications.
 
-import type { AuthTokens } from '../types/auth';
+import type { AuthTokens, UserRole } from '../types/auth';
+import { api } from './api';
 
 const ACCESS_TOKEN_KEY = 'dlp_access_token';
 const REFRESH_TOKEN_KEY = 'dlp_refresh_token';
@@ -27,3 +28,22 @@ export const clearTokens = (): void => {
   localStorage.removeItem(ACCESS_TOKEN_KEY);
   localStorage.removeItem(REFRESH_TOKEN_KEY);
 };
+
+export interface SearchUserResult {
+  id: number;
+  username: string;
+  role: UserRole;
+}
+
+export interface UserSearchResponse {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: SearchUserResult[];
+}
+
+export const searchUsers = async (query: string): Promise<UserSearchResponse> => {
+  const response = await api.get<UserSearchResponse>(`/api/users/search/?q=${encodeURIComponent(query)}`);
+  return response.data;
+};
+

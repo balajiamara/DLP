@@ -21,6 +21,23 @@ class Settings(BaseSettings):
     DB_POOL_TIMEOUT: float = 10.0
     DB_POOL_PRE_PING: bool = True
 
+    # Google Gemini API key for embeddings (gemini-embedding-001)
+    GEMINI_API_KEY: str = ""
+
+    # Shared Internal Service Secret Header (X-Internal-Secret) for server-to-server auth
+    INTERNAL_SERVICE_SECRET: str = "dlp-internal-secret-key-change-me"
+
+    # Dedicated JWT Signing Key for verifying Django-issued access tokens (HS256)
+    JWT_SIGNING_KEY: str = "dlp-jwt-signing-key-dedicated-secret-2026"
+
+    # Supabase Storage Configuration
+    SUPABASE_URL: str = ""
+    SUPABASE_SERVICE_ROLE_KEY: str = ""
+
+    # Django backend service URL for cross-service calls
+    DJANGO_BASE_URL: str = "http://127.0.0.1:8000"
+
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -58,3 +75,6 @@ class Settings(BaseSettings):
 
 def get_settings() -> Settings:
     return Settings()
+
+
+settings = get_settings()

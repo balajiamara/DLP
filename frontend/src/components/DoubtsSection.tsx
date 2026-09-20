@@ -15,6 +15,7 @@ import { getCourses } from '../lib/syllabus';
 import { DoubtList } from './DoubtList';
 import { DoubtDetailView } from './DoubtDetailView';
 import { AskDoubtModal } from './AskDoubtModal';
+import { useDoubtWebSocket } from '../hooks/useDoubtWebSocket';
 import type { DoubtFilters } from '../types/doubts';
 
 interface DoubtsSectionProps {
@@ -30,6 +31,9 @@ export const DoubtsSection: React.FC<DoubtsSectionProps> = ({ classroomId, isTea
   const [selectedDoubtId, setSelectedDoubtId] = useState<number | null>(null);
   const [filters, setFilters] = useState<DoubtFilters>({ topic: null, resolved: null });
   const [isAskModalOpen, setIsAskModalOpen] = useState(false);
+
+  // Real-time WebSocket connection to FastAPI classroom doubt room (Step 36)
+  useDoubtWebSocket(normalizedClassroomId, selectedDoubtId);
 
   // Invalidation Helper
   const invalidateDoubtsQueries = () => {

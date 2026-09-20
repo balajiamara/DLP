@@ -6,6 +6,7 @@ export interface Group {
   description: string;
   created_by: User;
   member_count: number;
+  conversation_id?: number | null;
   created_at: string;
 }
 

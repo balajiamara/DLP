@@ -14,6 +14,7 @@ import {
   updateTopicProgress,
 } from '../lib/syllabus';
 import { TopicMaterials } from './TopicMaterials';
+import { GenerateQuizModal } from './GenerateQuizModal';
 import {
   ChevronDown,
   ChevronRight,
@@ -75,6 +76,8 @@ export const SyllabusTree: React.FC<SyllabusTreeProps> = ({ classroomId, isTeach
   const [resTitle, setResTitle] = useState('');
   const [resType, setResType] = useState<ResourceType>('LINK');
   const [resUrlOrNote, setResUrlOrNote] = useState('');
+
+  const [generatingQuizForTopic, setGeneratingQuizForTopic] = useState<{ id: number; title: string } | null>(null);
 
   const normalizedClassroomId = Number(classroomId);
 
@@ -502,6 +505,15 @@ export const SyllabusTree: React.FC<SyllabusTreeProps> = ({ classroomId, isTeach
                                             {isTeacher && (
                                               <>
                                                 <button
+                                                  id={`generate-quiz-btn-topic-${topic.id}`}
+                                                  onClick={() => setGeneratingQuizForTopic({ id: topic.id, title: topic.title })}
+                                                  className="px-2.5 py-1 bg-gradient-to-r from-indigo-600/20 to-violet-600/20 hover:from-indigo-600/40 hover:to-violet-600/40 text-indigo-300 border border-indigo-500/40 rounded-lg text-[11px] font-semibold transition flex items-center space-x-1"
+                                                  title="Generate AI Quiz Draft for this topic"
+                                                >
+                                                  <Sparkles className="w-3 h-3 text-indigo-400" />
+                                                  <span>Generate Quiz</span>
+                                                </button>
+                                                <button
                                                   onClick={() => setAddingResourceForTopic(topic.id)}
                                                   className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-[11px] font-medium transition flex items-center space-x-1"
                                                 >
@@ -636,6 +648,20 @@ export const SyllabusTree: React.FC<SyllabusTreeProps> = ({ classroomId, isTeach
             );
           })}
         </div>
+      )}
+
+      {/* Generate Quiz Modal */}
+      {generatingQuizForTopic && (
+        <GenerateQuizModal
+          isOpen={true}
+          onClose={() => setGeneratingQuizForTopic(null)}
+          classroomId={normalizedClassroomId}
+          topicId={generatingQuizForTopic.id}
+          topicTitle={generatingQuizForTopic.title}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ['classroom-drafts', normalizedClassroomId] });
+          }}
+        />
       )}
     </div>
   );

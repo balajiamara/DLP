@@ -2,8 +2,10 @@ import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getGroup, addGroupMember, leaveGroup } from '../lib/groups';
+import { getConversations } from '../lib/conversations';
+import { ChatView } from '../components/ChatView';
 import { Navbar } from '../components/Navbar';
-import { Users, UserPlus, LogOut, ArrowLeft, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Users, UserPlus, LogOut, ArrowLeft, AlertCircle, CheckCircle2, MessageSquare } from 'lucide-react';
 import axios from 'axios';
 
 export const GroupDetailPage: React.FC = () => {
@@ -19,6 +21,16 @@ export const GroupDetailPage: React.FC = () => {
     queryFn: () => getGroup(id!),
     enabled: !!id,
   });
+
+  const { data: conversations = [] } = useQuery({
+    queryKey: ['conversations'],
+    queryFn: getConversations,
+    enabled: !group?.conversation_id,
+  });
+
+  const resolvedConversationId =
+    group?.conversation_id ||
+    conversations.find((c) => c.type === 'GROUP' && c.entity_id === group?.id)?.id;
 
   const addMemberMutation = useMutation({
     mutationFn: (username: string) => addGroupMember(id!, { username }),
@@ -183,6 +195,28 @@ export const GroupDetailPage: React.FC = () => {
               </button>
             </form>
           </div>
+        </div>
+
+        {/* Group Chat Section */}
+        <div className="space-y-4">
+          <div className="flex items-center space-x-2 px-1">
+            <MessageSquare className="w-5 h-5 text-emerald-400" />
+            <h2 className="text-lg font-bold text-white tracking-tight">Study Group Chat</h2>
+          </div>
+
+          {resolvedConversationId ? (
+            <ChatView
+              conversationId={resolvedConversationId}
+              title={`${group.name} — Group Discussion`}
+              subtitle="Live chat with your study group members"
+              emptyStatePrompt="No messages in this group yet — say hello to your peers!"
+            />
+          ) : (
+            <div className="p-8 text-center bg-slate-900 border border-slate-800 rounded-3xl">
+              <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+              <p className="text-xs text-slate-400">Loading group conversation...</p>
+            </div>
+          )}
         </div>
       </main>
     </div>

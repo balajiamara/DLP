@@ -11,6 +11,11 @@ from .views import (
     QuizAttemptCreateView,
     StudentQuizAttemptDetailView,
     QuizAttemptsListView,
+    ClassroomDraftListView,
+    DraftApproveView,
+    DraftRejectView,
+    DraftGenerateQuizProxyView,
+    DraftGenerateStudyPlanProxyView,
 )
 
 urlpatterns = [
@@ -29,4 +34,12 @@ urlpatterns = [
     path('quizzes/<int:quiz_id>/attempt/', QuizAttemptCreateView.as_view(), name='quiz_attempt_create'),
     path('quizzes/<int:quiz_id>/my-attempt/', StudentQuizAttemptDetailView.as_view(), name='student_quiz_attempt_detail'),
     path('quizzes/<int:quiz_id>/attempts/', QuizAttemptsListView.as_view(), name='quiz_attempts_list'),
+    # AI Generated Drafts (Step 40 Review-Before-Save Gate)
+    path('drafts/', ClassroomDraftListView.as_view(), name='draft_list'),
+    path('drafts/<int:draft_id>/approve/', DraftApproveView.as_view(), name='draft_approve'),
+    path('drafts/<int:draft_id>/reject/', DraftRejectView.as_view(), name='draft_reject'),
+    path('drafts/generate-quiz/', DraftGenerateQuizProxyView.as_view(), name='draft_generate_quiz'),
+    path('drafts/generate-study-plan/', DraftGenerateStudyPlanProxyView.as_view(), name='draft_generate_study_plan'),
 ]
+
+

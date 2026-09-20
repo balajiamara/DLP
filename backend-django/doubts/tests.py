@@ -1,3 +1,4 @@
+from unittest.mock import patch
 from django.contrib.auth import get_user_model
 from rest_framework.test import APITestCase
 from rest_framework import status
@@ -267,3 +268,23 @@ class DoubtsAPITests(APITestCase):
         # 4. Teacher deletes Student 1's doubt -> 204 No Content
         self.client.force_authenticate(user=self.teacher1)
         self.assertEqual(self.client.delete(doubt_url).status_code, status.HTTP_204_NO_CONTENT)
+
+    @patch('doubts.broadcast.requests.post')
+    def test_dispatch_doubt_broadcast_resilience(self, mock_requests_post):
+        """Confirms dispatch_doubt_broadcast catches Timeout and ConnectionError gracefully without failing."""
+        from doubts.broadcast import dispatch_doubt_broadcast
+        import requests
+
+        # 1. Test Timeout exception
+        mock_requests_post.side_effect = requests.exceptions.Timeout("Connection timed out")
+        try:
+            dispatch_doubt_broadcast("doubt_created", self.classroom1.id, {"title": "Test"})
+        except Exception as e:
+            self.fail(f"dispatch_doubt_broadcast raised an unhandled exception on Timeout: {e}")
+
+        # 2. Test ConnectionError exception
+        mock_requests_post.side_effect = requests.exceptions.ConnectionError("Refused connection")
+        try:
+            dispatch_doubt_broadcast("doubt_created", self.classroom1.id, {"title": "Test"})
+        except Exception as e:
+            self.fail(f"dispatch_doubt_broadcast raised an unhandled exception on ConnectionError: {e}")

@@ -7,3 +7,9 @@ python-dotenv
 pytest
 pytest-asyncio
 httpx
+alembic
+pgvector
+pypdf
+google-genai
+PyJWT
+mcp>=2.2.0

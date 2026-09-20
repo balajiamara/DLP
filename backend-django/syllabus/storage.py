@@ -8,7 +8,7 @@ def get_supabase_client() -> Client:
     global _supabase_client
     if _supabase_client is None:
         url = os.environ.get("SUPABASE_URL", "")
-        key = os.environ.get("SUPABASE_SERVICE_KEY", "")
+        key = os.environ.get("SUPABASE_SERVICE_KEY") or os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
         _supabase_client = create_client(url, key)
     return _supabase_client
 

@@ -3,9 +3,16 @@ Django settings for dlp_core project.
 """
 
 import os
+import socket
 from pathlib import Path
 import dotenv
 import dj_database_url
+
+# Force IPv4 resolution to prevent Windows IPv6 pooler connection drops on Supabase
+_orig_getaddrinfo = socket.getaddrinfo
+def _ipv4_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
+    return _orig_getaddrinfo(host, port, socket.AF_INET, type, proto, flags)
+socket.getaddrinfo = _ipv4_getaddrinfo
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -45,6 +52,8 @@ INSTALLED_APPS = [
     'doubts',
     'assessments',
     'notifications',
+    'chat',
+    'conversations',
 ]
 
 AUTH_USER_MODEL = 'accounts.User'
@@ -53,6 +62,12 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
+}
+
+SIMPLE_JWT = {
+    'SIGNING_KEY': os.getenv("JWT_SIGNING_KEY", SECRET_KEY),
+    'ALGORITHM': 'HS256',
+    'AUTH_HEADER_TYPES': ('Bearer',),
 }
 
 MIDDLEWARE = [
@@ -92,6 +107,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'dlp_core.wsgi.application'
+ASGI_APPLICATION = 'dlp_core.asgi.application'
 
 # Database
 DATABASES = {
@@ -138,3 +154,6 @@ if not DEBUG:
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+INTERNAL_SERVICE_SECRET = os.getenv("INTERNAL_SERVICE_SECRET", "dlp-internal-secret-key-change-me")
+

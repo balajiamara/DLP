@@ -11,6 +11,7 @@ import { ClassroomDetailPage } from './pages/ClassroomDetailPage';
 import { JoinPage } from './pages/JoinPage';
 import { CreateGroupPage } from './pages/CreateGroupPage';
 import { GroupDetailPage } from './pages/GroupDetailPage';
+import { MessagesPage } from './pages/MessagesPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -39,6 +40,7 @@ export const App: React.FC = () => {
               <Route path="/join/:token" element={<JoinPage />} />
               <Route path="/groups/new" element={<CreateGroupPage />} />
               <Route path="/groups/:id" element={<GroupDetailPage />} />
+              <Route path="/messages" element={<MessagesPage />} />
             </Route>
 
             {/* Fallback & Redirects */}

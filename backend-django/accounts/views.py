@@ -53,4 +53,5 @@ class UserSearchView(generics.ListAPIView):
         q = self.request.query_params.get('q', '').strip()
         if not q:
             return User.objects.none()
-        return User.objects.filter(username__icontains=q).order_by('username')
+        return User.objects.filter(username__icontains=q).exclude(pk=self.request.user.pk).order_by('username')
+

@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Assignment, Submission, Quiz, Question, QuizAttempt
+from .models import Assignment, Submission, Quiz, Question, QuizAttempt, GeneratedDraft
 
 
 class AssignmentSerializer(serializers.ModelSerializer):
@@ -37,15 +37,16 @@ class SubmissionFeedbackSerializer(serializers.ModelSerializer):
 class QuestionStudentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Question
-        fields = ['id', 'quiz', 'text', 'option_a', 'option_b', 'option_c', 'option_d', 'order']
+        fields = ['id', 'quiz', 'text', 'option_a', 'option_b', 'option_c', 'option_d', 'explanation', 'order']
         read_only_fields = ['id', 'quiz']
 
 
 class QuestionTeacherSerializer(serializers.ModelSerializer):
     class Meta:
         model = Question
-        fields = ['id', 'quiz', 'text', 'option_a', 'option_b', 'option_c', 'option_d', 'correct_option', 'order']
+        fields = ['id', 'quiz', 'text', 'option_a', 'option_b', 'option_c', 'option_d', 'correct_option', 'explanation', 'order']
         read_only_fields = ['id', 'quiz']
+
 
 
 class QuizSerializer(serializers.ModelSerializer):
@@ -118,3 +119,49 @@ class QuizAttemptSerializer(serializers.ModelSerializer):
         model = QuizAttempt
         fields = ['id', 'quiz', 'student', 'student_username', 'answers', 'score', 'attempted_at']
         read_only_fields = ['id', 'quiz', 'student', 'score', 'attempted_at']
+
+
+class GeneratedDraftSerializer(serializers.ModelSerializer):
+    created_by_username = serializers.CharField(source='created_by.username', read_only=True)
+    target_student_username = serializers.CharField(source='target_student.username', read_only=True, default=None)
+    topic_title = serializers.CharField(source='topic.title', read_only=True, default=None)
+    review_notice = serializers.SerializerMethodField()
+
+    class Meta:
+        model = GeneratedDraft
+        fields = [
+            'id', 'classroom', 'content_type', 'status', 'content',
+            'topic', 'topic_title', 'created_by', 'created_by_username',
+            'target_student', 'target_student_username',
+            'requires_teacher_fact_check', 'review_notice',
+            'approved_quiz', 'approved_assignment',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = [
+            'id', 'classroom', 'status', 'created_by',
+            'requires_teacher_fact_check', 'review_notice',
+            'approved_quiz', 'approved_assignment',
+            'created_at', 'updated_at'
+        ]
+
+    def get_review_notice(self, obj):
+        return (
+            "Schema validation confirms structure and format only. "
+            "Factual accuracy, pedagogical relevance, and correct answer selection "
+            "must be verified by a teacher before approval."
+        )
+
+
+class InternalDraftCreateSerializer(serializers.ModelSerializer):
+    """
+    Used exclusively by FastAPI internal service communication to create drafts in Django.
+    """
+    class Meta:
+        model = GeneratedDraft
+        fields = [
+            'id', 'classroom', 'content_type', 'status', 'content',
+            'topic', 'created_by', 'target_student',
+            'requires_teacher_fact_check', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+

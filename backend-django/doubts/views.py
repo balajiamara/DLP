@@ -8,6 +8,7 @@ from classrooms.models import Classroom, ClassroomMembership
 from syllabus.models import Topic
 from .models import Doubt, DoubtReply
 from .serializers import DoubtSerializer, DoubtDetailSerializer, DoubtReplySerializer
+from .broadcast import dispatch_doubt_broadcast
 from notifications.services import create_notification
 from notifications.models import Notification
 
@@ -62,7 +63,9 @@ class DoubtListCreateView(APIView):
                 raise ValidationError({'topic': 'Topic does not belong to this classroom.'})
 
         doubt = serializer.save(classroom=classroom, author=request.user)
-        return Response(DoubtSerializer(doubt).data, status=status.HTTP_201_CREATED)
+        doubt_data = DoubtSerializer(doubt).data
+        dispatch_doubt_broadcast('doubt_created', classroom.id, doubt_data)
+        return Response(doubt_data, status=status.HTTP_201_CREATED)
 
 
 class DoubtDetailView(APIView):
@@ -116,7 +119,9 @@ class DoubtReplyListCreateView(APIView):
                 link=f"/classrooms/{classroom.id}/doubts/{doubt.id}"
             )
 
-        return Response(DoubtReplySerializer(reply).data, status=status.HTTP_201_CREATED)
+        reply_data = DoubtReplySerializer(reply).data
+        dispatch_doubt_broadcast('reply_created', classroom.id, reply_data)
+        return Response(reply_data, status=status.HTTP_201_CREATED)
 
 
 class DoubtReplyAcceptView(APIView):
@@ -146,7 +151,9 @@ class DoubtReplyAcceptView(APIView):
             link=f"/classrooms/{classroom.id}/doubts/{doubt.id}"
         )
 
-        return Response(DoubtReplySerializer(reply).data, status=status.HTTP_200_OK)
+        reply_data = DoubtReplySerializer(reply).data
+        dispatch_doubt_broadcast('answer_accepted', classroom.id, reply_data)
+        return Response(reply_data, status=status.HTTP_200_OK)
 
 
 class DoubtReplyDetailView(APIView):

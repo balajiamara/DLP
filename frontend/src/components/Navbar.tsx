@@ -1,17 +1,21 @@
 import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { NotificationDropdown } from './NotificationDropdown';
-import { BookOpen, LayoutDashboard, LogOut, User as UserIcon } from 'lucide-react';
+import { BookOpen, LayoutDashboard, LogOut, User as UserIcon, MessageSquare } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleLogout = () => {
     logout();
     navigate('/login');
   };
+
+  const isMessagesActive = location.pathname.startsWith('/messages');
+  const isDashboardActive = location.pathname === '/dashboard';
 
   return (
     <header className="border-b border-slate-800 bg-slate-900/60 backdrop-blur-md sticky top-0 z-20">
@@ -27,15 +31,38 @@ export const Navbar: React.FC = () => {
           <nav className="hidden md:flex items-center space-x-2">
             <Link
               to="/dashboard"
-              className="flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition"
+              className={`flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium transition ${
+                isDashboardActive
+                  ? 'bg-slate-800 text-white'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-800'
+              }`}
             >
               <LayoutDashboard className="w-4 h-4 text-indigo-400" />
               <span>Dashboard</span>
+            </Link>
+
+            <Link
+              to="/messages"
+              className={`flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium transition ${
+                isMessagesActive
+                  ? 'bg-slate-800 text-white'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-800'
+              }`}
+            >
+              <MessageSquare className="w-4 h-4 text-indigo-400" />
+              <span>Messages</span>
             </Link>
           </nav>
         </div>
 
         <div className="flex items-center space-x-3 sm:space-x-4">
+          <Link
+            to="/messages"
+            className="md:hidden p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition"
+            title="Messages"
+          >
+            <MessageSquare className="w-5 h-5 text-indigo-400" />
+          </Link>
           <NotificationDropdown />
 
           <div className="flex items-center space-x-2 text-sm bg-slate-800/80 px-3.5 py-1.5 rounded-full border border-slate-700">

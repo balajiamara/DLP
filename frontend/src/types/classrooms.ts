@@ -6,6 +6,7 @@ export interface Classroom {
   description: string;
   teacher: User;
   member_count: number;
+  conversation_id?: number | null;
   created_at: string;
   updated_at: string;
 }

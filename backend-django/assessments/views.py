@@ -1,12 +1,20 @@
+import os
+import httpx
+import logging
 from rest_framework import permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.exceptions import PermissionDenied, NotFound, ValidationError
 from django.shortcuts import get_object_or_404
 
+logger = logging.getLogger(__name__)
+FASTAPI_INTERNAL_URL = os.getenv("FASTAPI_INTERNAL_URL", "http://127.0.0.1:8001")
+
+from django.db import transaction
+from django.conf import settings
 from classrooms.models import Classroom, ClassroomMembership
 from syllabus.models import Topic, TopicProgress
-from .models import Assignment, Submission, Quiz, Question, QuizAttempt
+from .models import Assignment, Submission, Quiz, Question, QuizAttempt, GeneratedDraft
 from .serializers import (
     AssignmentSerializer,
     SubmissionSerializer,
@@ -14,8 +22,11 @@ from .serializers import (
     QuizSerializer,
     QuizCreateSerializer,
     QuizDetailSerializer,
-    QuizAttemptSerializer
+    QuizAttemptSerializer,
+    GeneratedDraftSerializer,
+    InternalDraftCreateSerializer
 )
+
 from notifications.services import create_notification, notify_classroom_students
 from notifications.models import Notification
 
@@ -315,4 +326,296 @@ class QuizAttemptsListView(APIView):
         attempts = quiz.attempts.all()
         serializer = QuizAttemptSerializer(attempts, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+# --- Step 40: AI Generated Draft Views (Review-Before-Save Gate) ---
+
+class ClassroomDraftListView(APIView):
+    """
+    List AI-generated drafts (quizzes or study plans) for a classroom.
+    Teachers can see all drafts for the classroom.
+    Students can only see study plan drafts where target_student is themselves.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, classroom_id):
+        classroom = get_validated_classroom(request.user, classroom_id, require_teacher=False)
+        is_teacher = (request.user == classroom.teacher)
+
+        if is_teacher:
+            queryset = classroom.generated_drafts.all()
+        else:
+            queryset = classroom.generated_drafts.filter(
+                content_type=GeneratedDraft.ContentType.STUDY_PLAN,
+                target_student=request.user
+            )
+
+        status_filter = request.query_params.get('status')
+        if status_filter:
+            queryset = queryset.filter(status=status_filter.upper())
+
+        content_type_filter = request.query_params.get('content_type')
+        if content_type_filter:
+            queryset = queryset.filter(content_type=content_type_filter.upper())
+
+        serializer = GeneratedDraftSerializer(queryset, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class DraftApproveView(APIView):
+    """
+    Approves a generated draft and converts it into real Quiz+Questions or Assignment records.
+    Explicitly scoped to the classroom_id in the URL and gated to the classroom teacher.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, classroom_id, draft_id):
+        classroom = get_validated_classroom(request.user, classroom_id, require_teacher=True)
+        draft = get_object_or_404(GeneratedDraft, pk=draft_id, classroom=classroom)
+
+        if draft.status != GeneratedDraft.Status.DRAFT:
+            return Response(
+                {"detail": f"Draft cannot be approved because it is already {draft.status.lower()}."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        with transaction.atomic():
+            if draft.content_type == GeneratedDraft.ContentType.QUIZ:
+                content = draft.content
+                title = content.get('title') or 'Generated Quiz'
+                quiz = Quiz.objects.create(
+                    classroom=classroom,
+                    topic=draft.topic,
+                    title=title,
+                    created_by=request.user
+                )
+
+                questions_data = content.get('questions', [])
+                for idx, q_data in enumerate(questions_data):
+                    Question.objects.create(
+                        quiz=quiz,
+                        text=q_data['question'],
+                        option_a=q_data['option_a'],
+                        option_b=q_data['option_b'],
+                        option_c=q_data['option_c'],
+                        option_d=q_data['option_d'],
+                        correct_option=q_data['correct_option'],
+                        explanation=q_data.get('explanation', ''),
+                        order=idx + 1
+                    )
+
+                draft.status = GeneratedDraft.Status.APPROVED
+                draft.approved_quiz = quiz
+                draft.save()
+
+            elif draft.content_type == GeneratedDraft.ContentType.STUDY_PLAN:
+                content = draft.content
+                title = content.get('title') or 'Personalized Study Plan'
+                overview = content.get('overview', '')
+                tasks = content.get('tasks', [])
+                task_lines = []
+                for idx, t in enumerate(tasks, 1):
+                    target = f" (Topic: {t.get('target_topic_name')})" if t.get('target_topic_name') else ""
+                    pacing = f" [{t.get('suggested_pacing')}]" if t.get('suggested_pacing') else ""
+                    due = f" Due: {t.get('suggested_due_date')}" if t.get('suggested_due_date') else ""
+                    task_lines.append(f"{idx}. {t.get('title', 'Task')}{target}{pacing}{due}\n   {t.get('description', '')}")
+
+                description = f"{overview}\n\nTasks:\n" + "\n".join(task_lines)
+                assignment = Assignment.objects.create(
+                    classroom=classroom,
+                    topic=draft.topic,
+                    title=title,
+                    description=description.strip(),
+                    created_by=request.user
+                )
+
+                draft.status = GeneratedDraft.Status.APPROVED
+                draft.approved_assignment = assignment
+                draft.save()
+
+        serializer = GeneratedDraftSerializer(draft)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class DraftRejectView(APIView):
+    """
+    Rejects a generated draft without creating any live Quiz or Assignment records.
+    Explicitly scoped to the classroom_id in the URL and gated to the classroom teacher.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, classroom_id, draft_id):
+        classroom = get_validated_classroom(request.user, classroom_id, require_teacher=True)
+        draft = get_object_or_404(GeneratedDraft, pk=draft_id, classroom=classroom)
+
+        if draft.status != GeneratedDraft.Status.DRAFT:
+            return Response(
+                {"detail": f"Draft cannot be rejected because it is already {draft.status.lower()}."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        draft.status = GeneratedDraft.Status.REJECTED
+        draft.save()
+
+        serializer = GeneratedDraftSerializer(draft)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class InternalDraftCreateView(APIView):
+    """
+    Internal service-to-service endpoint for FastAPI to insert validated drafts
+    into Django's database, respecting Django ORM constraints.
+    Gated by X-Internal-Secret header.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        secret = request.headers.get("X-Internal-Secret", "")
+        if not secret or secret != settings.INTERNAL_SERVICE_SECRET:
+            return Response(
+                {"detail": "Forbidden: Invalid internal service secret."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        serializer = InternalDraftCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        draft = serializer.save()
+        return Response(GeneratedDraftSerializer(draft).data, status=status.HTTP_201_CREATED)
+
+
+class DraftGenerateQuizProxyView(APIView):
+    """
+    Proxies AI quiz generation requests to FastAPI's internal /content/generate-quiz endpoint.
+    Requires user authentication, enforces teacher-only access, attaches internal secret.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, classroom_id):
+        classroom = get_validated_classroom(request.user, classroom_id, require_teacher=True)
+        topic_id = request.data.get("topic_id")
+        num_questions = request.data.get("num_questions", 5)
+
+        if not topic_id:
+            return Response(
+                {"detail": "topic_id is required."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        target_url = f"{FASTAPI_INTERNAL_URL.rstrip('/')}/content/generate-quiz"
+        payload = {
+            "classroom_id": classroom.id,
+            "topic_id": int(topic_id),
+            "teacher_user_id": request.user.id,
+            "num_questions": int(num_questions),
+        }
+        headers = {
+            "X-Internal-Secret": settings.INTERNAL_SERVICE_SECRET,
+            "Content-Type": "application/json",
+        }
+
+        try:
+            with httpx.Client(timeout=45.0) as client:
+                upstream_resp = client.post(target_url, json=payload, headers=headers)
+                if upstream_resp.headers.get("content-type", "").startswith("application/json"):
+                    data = upstream_resp.json()
+                else:
+                    data = {"detail": upstream_resp.text}
+
+                # Intended validation errors (e.g. no approved material found for topic)
+                if upstream_resp.status_code == status.HTTP_400_BAD_REQUEST:
+                    detail_msg = data.get("detail") if isinstance(data, dict) else str(data)
+                    return Response({"detail": detail_msg}, status=status.HTTP_400_BAD_REQUEST)
+
+                # Prevent leaking internal 500s or unexpected upstream errors
+                if upstream_resp.status_code >= 400:
+                    logger.error("FastAPI returned error status %s for quiz generation: %s", upstream_resp.status_code, data)
+                    return Response(
+                        {"detail": "Content generation is currently unavailable. Please try again later."},
+                        status=status.HTTP_502_BAD_GATEWAY
+                    )
+
+                return Response(data, status=upstream_resp.status_code)
+        except Exception as exc:
+            logger.error("Error proxying quiz generation to FastAPI: %s", exc)
+            return Response(
+                {"detail": "Content generation service is currently unavailable. Please try again later."},
+                status=status.HTTP_502_BAD_GATEWAY
+            )
+
+
+class DraftGenerateStudyPlanProxyView(APIView):
+    """
+    Proxies AI study plan generation requests to FastAPI's internal /content/generate-study-plan endpoint.
+    Requires user authentication (active classroom member), attaches internal secret.
+    Students generate for themselves; teachers can generate for a target student.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, classroom_id):
+        classroom = get_validated_classroom(request.user, classroom_id, require_teacher=False)
+        is_teacher = (request.user == classroom.teacher)
+
+        if is_teacher:
+            student_user_id = request.data.get("student_user_id")
+            if not student_user_id:
+                return Response(
+                    {"detail": "student_user_id is required for teacher-requested study plans."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        else:
+            student_user_id = request.user.id
+
+        goal_description = request.data.get("goal_description")
+        deadline = request.data.get("deadline")
+
+        if not goal_description:
+            return Response(
+                {"detail": "goal_description is required."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        target_url = f"{FASTAPI_INTERNAL_URL.rstrip('/')}/content/generate-study-plan"
+        payload = {
+            "classroom_id": classroom.id,
+            "student_user_id": int(student_user_id),
+            "requesting_user_id": request.user.id,
+            "goal_description": goal_description,
+            "deadline": deadline or None,
+        }
+        headers = {
+            "X-Internal-Secret": settings.INTERNAL_SERVICE_SECRET,
+            "Content-Type": "application/json",
+        }
+
+        try:
+            with httpx.Client(timeout=45.0) as client:
+                upstream_resp = client.post(target_url, json=payload, headers=headers)
+                if upstream_resp.headers.get("content-type", "").startswith("application/json"):
+                    data = upstream_resp.json()
+                else:
+                    data = {"detail": upstream_resp.text}
+
+                # Intended validation errors (e.g. topic/progress validation)
+                if upstream_resp.status_code == status.HTTP_400_BAD_REQUEST:
+                    detail_msg = data.get("detail") if isinstance(data, dict) else str(data)
+                    return Response({"detail": detail_msg}, status=status.HTTP_400_BAD_REQUEST)
+
+                # Prevent leaking internal 500s or unexpected upstream errors
+                if upstream_resp.status_code >= 400:
+                    logger.error("FastAPI returned error status %s for study plan generation: %s", upstream_resp.status_code, data)
+                    return Response(
+                        {"detail": "Content generation is currently unavailable. Please try again later."},
+                        status=status.HTTP_502_BAD_GATEWAY
+                    )
+
+                return Response(data, status=upstream_resp.status_code)
+        except Exception as exc:
+            logger.error("Error proxying study plan generation to FastAPI: %s", exc)
+            return Response(
+                {"detail": "Content generation service is currently unavailable. Please try again later."},
+                status=status.HTTP_502_BAD_GATEWAY
+            )
+
+
+
 

@@ -179,10 +179,11 @@ class AuthenticationTestCase(APITestCase):
     def test_user_search_does_not_expose_email_addresses(self):
         """Test GET /api/users/search/?q=<query> does not expose private fields like email."""
         self.client.post(self.register_url, self.user_data, format='json')
+        self.client.post(self.register_url, self.teacher_data, format='json')
         user = User.objects.get(email=self.user_data['email'])
         self.client.force_authenticate(user=user)
 
-        search_url = self.search_url + '?q=student'
+        search_url = self.search_url + '?q=teacher'
         response = self.client.get(search_url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -194,8 +195,21 @@ class AuthenticationTestCase(APITestCase):
         self.assertIn('username', results[0])
         self.assertIn('role', results[0])
 
+    def test_user_search_excludes_requesting_user(self):
+        """Test GET /api/users/search/?q=<query> excludes the requesting user themselves."""
+        self.client.post(self.register_url, self.user_data, format='json')
+        user = User.objects.get(email=self.user_data['email'])
+        self.client.force_authenticate(user=user)
+
+        search_url = self.search_url + '?q=student'
+        response = self.client.get(search_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data['results']), 0)
+
     def test_user_search_requires_authentication(self):
         """Test GET /api/users/search/ returns 401 when unauthenticated."""
         search_url = self.search_url + '?q=student'
         response = self.client.get(search_url)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+

@@ -24,5 +24,9 @@ urlpatterns = [
     path('api/join/<str:token>/', JoinClassroomView.as_view(), name='join_classroom'),
     path('api/groups/', include('groups.urls')),
     path('api/notifications/', include('notifications.urls')),
+    path('api/internal/drafts/', __import__('assessments.views', fromlist=['InternalDraftCreateView']).InternalDraftCreateView.as_view(), name='internal_draft_create'),
+    path('api/chat/', include('chat.urls')),
+    path('api/conversations/', include('conversations.urls')),
 ]
+
 

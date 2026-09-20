@@ -150,6 +150,7 @@ class Material(models.Model):
         choices=MaterialStatus.choices,
         default=MaterialStatus.UPLOADED
     )
+    failure_reason = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

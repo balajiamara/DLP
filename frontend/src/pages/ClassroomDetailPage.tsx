@@ -9,14 +9,20 @@ import { DoubtsSection } from '../components/DoubtsSection';
 import { AssignmentsSection } from '../components/AssignmentsSection';
 import { QuizzesSection } from '../components/QuizzesSection';
 import { DashboardSection } from '../components/DashboardSection';
-import { School, Users, Link as LinkIcon, Copy, Check, ArrowLeft, AlertCircle, BookOpen, HelpCircle, FileText, Award, BarChart3 } from 'lucide-react';
+import { DraftsSection } from '../components/DraftsSection';
+import { getClassroomDrafts } from '../lib/drafts';
+import { getConversations } from '../lib/conversations';
+import { ChatView } from '../components/ChatView';
+import { School, Users, Link as LinkIcon, Copy, Check, ArrowLeft, AlertCircle, BookOpen, HelpCircle, FileText, Award, BarChart3, Sparkles, MessageSquare } from 'lucide-react';
+import { ChatPanel } from '../components/ChatPanel';
 
 export const ClassroomDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  const [activeTab, setActiveTab] = useState<'syllabus' | 'doubts' | 'assignments' | 'quizzes' | 'dashboard'>('syllabus');
+  const [activeTab, setActiveTab] = useState<'syllabus' | 'doubts' | 'chat' | 'assignments' | 'quizzes' | 'dashboard' | 'drafts'>('syllabus');
+  const [isChatOpen, setIsChatOpen] = useState(false);
   const [generatedLink, setGeneratedLink] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -25,6 +31,24 @@ export const ClassroomDetailPage: React.FC = () => {
     queryFn: () => getClassroom(id!),
     enabled: !!id,
   });
+
+  const { data: drafts = [] } = useQuery({
+    queryKey: ['classroom-drafts', classroom?.id],
+    queryFn: () => getClassroomDrafts(classroom!.id),
+    enabled: !!classroom?.id,
+  });
+
+  const pendingDraftsCount = drafts.filter((d) => d.status === 'DRAFT').length;
+
+  const { data: conversations = [] } = useQuery({
+    queryKey: ['conversations'],
+    queryFn: getConversations,
+    enabled: !classroom?.conversation_id,
+  });
+
+  const resolvedConversationId =
+    classroom?.conversation_id ||
+    conversations.find((c) => c.type === 'CLASSROOM' && c.entity_id === classroom?.id)?.id;
 
   const joinTokenMutation = useMutation({
     mutationFn: () => createJoinToken(id!),
@@ -111,6 +135,16 @@ export const ClassroomDetailPage: React.FC = () => {
             </div>
 
             <div className="flex items-center space-x-3">
+              <button
+                id="header-open-ai-chat-btn"
+                type="button"
+                onClick={() => setIsChatOpen(true)}
+                className="flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white text-xs font-semibold shadow-md shadow-indigo-600/20 border border-indigo-400/30 transition"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-indigo-200" />
+                <span>Ask AI</span>
+              </button>
+
               <div className="flex items-center space-x-1.5 px-3 py-1.5 rounded-full bg-slate-800 border border-slate-700 text-xs font-semibold text-slate-300">
                 <Users className="w-4 h-4 text-indigo-400" />
                 <span>{classroom.member_count} Members</span>
@@ -194,6 +228,18 @@ export const ClassroomDetailPage: React.FC = () => {
             <span>Doubts Forum</span>
           </button>
           <button
+            id="tab-classroom-chat"
+            onClick={() => setActiveTab('chat')}
+            className={`px-5 py-2.5 rounded-2xl text-xs font-bold transition flex items-center space-x-2 flex-shrink-0 ${
+              activeTab === 'chat'
+                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20'
+                : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+            }`}
+          >
+            <MessageSquare className="w-4 h-4" />
+            <span>Classroom Chat</span>
+          </button>
+          <button
             onClick={() => setActiveTab('assignments')}
             className={`px-5 py-2.5 rounded-2xl text-xs font-bold transition flex items-center space-x-2 flex-shrink-0 ${
               activeTab === 'assignments'
@@ -216,6 +262,24 @@ export const ClassroomDetailPage: React.FC = () => {
             <span>Quizzes</span>
           </button>
 
+          <button
+            id="tab-ai-drafts"
+            onClick={() => setActiveTab('drafts')}
+            className={`px-5 py-2.5 rounded-2xl text-xs font-bold transition flex items-center space-x-2 flex-shrink-0 ${
+              activeTab === 'drafts'
+                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20'
+                : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+            }`}
+          >
+            <Sparkles className="w-4 h-4 text-indigo-300" />
+            <span>AI Drafts</span>
+            {pendingDraftsCount > 0 && (
+              <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-extrabold bg-amber-500 text-slate-950 shadow-sm">
+                {pendingDraftsCount}
+              </span>
+            )}
+          </button>
+
           {isTeacher && (
             <button
               onClick={() => setActiveTab('dashboard')}
@@ -236,14 +300,49 @@ export const ClassroomDetailPage: React.FC = () => {
           <SyllabusSection classroomId={classroom.id} isTeacher={isTeacher} />
         ) : activeTab === 'doubts' ? (
           <DoubtsSection classroomId={classroom.id} isTeacher={isTeacher} />
+        ) : activeTab === 'chat' ? (
+          resolvedConversationId ? (
+            <ChatView
+              conversationId={resolvedConversationId}
+              title={`${classroom.name} — Class Chat`}
+              subtitle="Real-time discussion for all enrolled students and teachers"
+            />
+          ) : (
+            <div className="p-8 text-center bg-slate-900 border border-slate-800 rounded-3xl">
+              <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+              <p className="text-xs text-slate-400">Loading classroom conversation...</p>
+            </div>
+          )
         ) : activeTab === 'assignments' ? (
           <AssignmentsSection classroomId={classroom.id} isTeacher={isTeacher} />
         ) : activeTab === 'quizzes' ? (
           <QuizzesSection classroomId={classroom.id} isTeacher={isTeacher} />
+        ) : activeTab === 'drafts' ? (
+          <DraftsSection classroomId={classroom.id} isTeacher={isTeacher} />
         ) : isTeacher ? (
           <DashboardSection classroomId={classroom.id} />
         ) : null}
       </main>
+
+      {/* Floating Action Trigger Button (accessible from any view / tab) */}
+      <button
+        id="floating-open-ai-chat-btn"
+        type="button"
+        onClick={() => setIsChatOpen(true)}
+        className="fixed bottom-6 right-6 z-40 flex items-center space-x-2.5 bg-gradient-to-r from-indigo-600 via-indigo-500 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white text-sm font-semibold px-5 py-3.5 rounded-full shadow-2xl shadow-indigo-600/40 border border-indigo-400/40 transition-all transform hover:scale-105 active:scale-95 group"
+        title="Open AI Learning Assistant"
+      >
+        <Sparkles className="w-4 h-4 text-indigo-200 group-hover:rotate-12 transition-transform" />
+        <span>Ask AI</span>
+      </button>
+
+      {/* Slide-out AI Chat Panel */}
+      <ChatPanel
+        isOpen={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
+        classroomId={classroom.id}
+        classroomTitle={classroom.name}
+      />
     </div>
   );
 };
