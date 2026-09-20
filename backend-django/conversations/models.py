@@ -63,7 +63,7 @@ class Conversation(models.Model):
             ),
             # DB-level canonical ordering guarantee: user_a < user_b
             models.CheckConstraint(
-                check=~models.Q(type='DIRECT') | models.Q(user_a_id__lt=models.F('user_b_id')),
+                condition=~models.Q(type='DIRECT') | models.Q(user_a_id__lt=models.F('user_b_id')),
                 name='direct_user_a_lt_user_b'
             ),
 
